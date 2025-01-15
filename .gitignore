@@ -31,3 +31,12 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# Ignore everything in the folder
+app/src/main/cpp/*
+
+# Allow specific files
+!app/src/main/cpp/README.md
+!app/src/main/cpp/build_libass.sh
+!app/src/main/cpp/CMakeLists.txt
+!app/src/main/cpp/native-lib.cpp

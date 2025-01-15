@@ -5,10 +5,13 @@
 #include <android/native_window_jni.h>
 #include <jni.h>
 #include <string>
-#include "ass/ass.h"
 #include "ass/ass_types.h"
 
 static ANativeWindow* nativeWindow = nullptr;
+#include <android/log.h>
+#include <jni.h>
+#include <string>
+#include "ass/ass.h"
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_example_prototypelibass_MainActivity_stringFromJNI(

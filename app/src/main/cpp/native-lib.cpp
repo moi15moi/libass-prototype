@@ -12,6 +12,9 @@ static ANativeWindow* nativeWindow = nullptr;
 #include <jni.h>
 #include <string>
 #include "ass/ass.h"
+#include <android/native_window_jni.h>
+
+static ANativeWindow* nativeWindow = nullptr;
 
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_example_prototypelibass_MainActivity_stringFromJNI(

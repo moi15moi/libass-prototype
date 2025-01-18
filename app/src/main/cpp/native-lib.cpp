@@ -146,6 +146,10 @@ Java_com_example_prototypelibass_MainActivity_initNativeWindow(
         }
         if (AndroidBitmap_lockPixels(env, bitmap, &bitmapPixels) < 0) {
             __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Failed to lock bitmap pixels");
+        // Clear the buffer with a black background
+        uint32_t* pixels = (uint32_t*)buffer.bits;
+        if (pixels == nullptr) {
+            __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Failed to get buffer bits");
             ANativeWindow_unlockAndPost(nativeWindow);
             return;
         }
@@ -161,6 +165,14 @@ Java_com_example_prototypelibass_MainActivity_initNativeWindow(
 
         // Unlock the bitmap
         AndroidBitmap_unlockPixels(env, bitmap);
+        __android_log_print(ANDROID_LOG_INFO, "NativeWindow", "Buffer width: %d, height: %d, stride: %d", buffer.width, buffer.height, buffer.stride);
+
+        for (int y = 0; y < buffer.height; ++y) {
+            for (int x = 0; x < buffer.width; ++x) {
+                pixels[y * buffer.stride + x] = 0xFF000000; // Black color
+            }
+        }
+
 
         // Unlock and post the ANativeWindow
         ANativeWindow_unlockAndPost(nativeWindow);

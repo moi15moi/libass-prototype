@@ -13,6 +13,7 @@ static ANativeWindow* nativeWindow = nullptr;
 #include <string>
 #include "ass/ass.h"
 #include <android/native_window_jni.h>
+#include <android/bitmap.h>
 
 static ANativeWindow* nativeWindow = nullptr;
 
@@ -173,6 +174,8 @@ Java_com_example_prototypelibass_MainActivity_initNativeWindow(
             }
         }
 
+        // Unlock the bitmap
+        AndroidBitmap_unlockPixels(env, bitmap);
 
         // Unlock and post the ANativeWindow
         ANativeWindow_unlockAndPost(nativeWindow);

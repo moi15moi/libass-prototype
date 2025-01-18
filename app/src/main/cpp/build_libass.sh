@@ -35,7 +35,7 @@ install_dependencies() {
     sudo apt update
     sudo apt install -y build-essential pkg-config autoconf automake libtool wget \
                        meson python3 python3-pip python3-setuptools python3-wheel \
-                       ninja-build libgraphite2-dev gperf gettext autopoint
+                       ninja-build
 }
 
 

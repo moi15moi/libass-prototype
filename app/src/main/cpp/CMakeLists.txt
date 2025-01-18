@@ -11,6 +11,25 @@ cmake_minimum_required(VERSION 3.22.1)
 # build script scope).
 project("prototypelibass")
 
+set(libass_build_location "${CMAKE_CURRENT_SOURCE_DIR}/${ANDROID_ABI}")
+set(libass_binaries "${libass_build_location}/usr/local/lib")
+
+foreach(libass_lib fribidi harfbuzz unibreak freetype ass)
+    set(libass_lib_filename lib${libass_lib}.a)
+    set(libass_lib_file_path ${libass_binaries}/${libass_lib_filename})
+
+    add_library(
+            ${libass_lib}
+            STATIC
+            IMPORTED)
+    set_target_properties(
+            ${libass_lib} PROPERTIES
+            IMPORTED_LOCATION
+            ${libass_lib_file_path})
+endforeach()
+
+include_directories("${libass_build_location}/usr/local/include")
+
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
 # You can define multiple libraries, and CMake builds them for you.
@@ -34,4 +53,9 @@ add_library(${CMAKE_PROJECT_NAME} SHARED
 target_link_libraries(${CMAKE_PROJECT_NAME}
         # List libraries link to the target library
         android
-        log)
+        log
+        ass
+        fribidi
+        harfbuzz
+        unibreak
+        freetype)

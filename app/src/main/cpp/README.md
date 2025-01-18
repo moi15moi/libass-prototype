@@ -1,4 +1,16 @@
 ## Build instructions (Linux, macOS)
+### Required dependencies
+Before running the build script for libass, you will need the following dependencies installed on your system. You may use your whatever package manager to install these.
+
+* build-essential
+* pkg-config
+* autoconf
+* automake
+* libtool
+* wget
+* meson and it's dependencies
+
+### Build Options
 
 ```
 NDK_PATH="<path to Android NDK>"

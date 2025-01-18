@@ -30,15 +30,6 @@ check_ndk_setup() {
 }
 
 
-install_dependencies() {
-    echo "Updating repositories and installing build dependencies..."
-    sudo apt update
-    sudo apt install -y build-essential pkg-config autoconf automake libtool wget \
-                       meson python3 python3-pip python3-setuptools python3-wheel \
-                       ninja-build libgraphite2-dev gperf gettext autopoint
-}
-
-
 create_meson_cross_file() {
     local cpu_family=$CPU
     [ "$cpu_family" == "i686" ] && cpu_family=x86

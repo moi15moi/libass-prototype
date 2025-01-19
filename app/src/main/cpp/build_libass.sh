@@ -100,7 +100,8 @@ build_freetype() {
                 --enable-static \
                 --disable-shared \
                 --with-pic \
-                --with-harfbuzz=yes
+                --with-harfbuzz=yes \
+                --with-zlib=no
 
     make -j$(nproc)
     make DESTDIR="$ABS_BUILD_PATH" install

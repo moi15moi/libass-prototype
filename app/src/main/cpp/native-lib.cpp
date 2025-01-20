@@ -32,68 +32,75 @@ Java_com_example_prototypelibass_MainActivity_renderASSFile(JNIEnv *env, jobject
 
     // Read the subtitle file
     const char* subtitleFilename = "subtitle.ass";
-    AAsset* subtitleAsset = AAssetManager_open(g_assetManager, subtitleFilename, AASSET_MODE_BUFFER);
+    std::unique_ptr<AAsset, decltype(&AAsset_close)> subtitleAsset(
+            AAssetManager_open(g_assetManager, subtitleFilename, AASSET_MODE_BUFFER),
+            AAsset_close
+    );
     if (!subtitleAsset) {
         __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "Failed to open subtitleAsset: %s", subtitleFilename);
         return;
     }
 
-    int subtitleLength = AAsset_getLength(subtitleAsset);
-    char* subtitleBuffer = (char*) malloc(subtitleLength + 1);
-    AAsset_read(subtitleAsset, subtitleBuffer, subtitleLength);
-    AAsset_close(subtitleAsset);
+    int subtitleLength = AAsset_getLength(subtitleAsset.get());
+    std::unique_ptr<char[]> subtitleBuffer = std::make_unique<char[]>(subtitleLength + 1);
+    AAsset_read(subtitleAsset.get(), subtitleBuffer.get(), subtitleLength);
 
     // Read the font file
     const char* fontFilename = "C059-Roman.otf";
-    AAsset* fontAsset = AAssetManager_open(g_assetManager, fontFilename, AASSET_MODE_BUFFER);
+    std::unique_ptr<AAsset, decltype(&AAsset_close)> fontAsset(
+            AAssetManager_open(g_assetManager, fontFilename, AASSET_MODE_BUFFER),
+            AAsset_close
+    );
     if (!fontAsset) {
         __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "Failed to open fontAsset: %s", fontFilename);
         return;
     }
 
-    size_t fontLength = AAsset_getLength(fontAsset);
-    char* fontBuffer = (char*) malloc(fontLength + 1);
-    AAsset_read(fontAsset, fontBuffer, fontLength);
-    AAsset_close(fontAsset);
+    size_t fontLength = AAsset_getLength(fontAsset.get());
+    std::unique_ptr<char[]> fontBuffer = std::make_unique<char[]>(fontLength + 1);
+    AAsset_read(fontAsset.get(), fontBuffer.get(), fontLength);
 
 
 
-    ASS_Library* lib = ass_library_init();
+    std::unique_ptr<ASS_Library, decltype(&ass_library_done)> lib(
+        ass_library_init(),
+        ass_library_done
+    );
     if (!lib) {
         __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "ass_library_init is null");
         return;
     }
 
-    ASS_Renderer* renderer = ass_renderer_init(lib);
+    std::unique_ptr<ASS_Renderer, decltype(&ass_renderer_done)> renderer(
+            ass_renderer_init(lib.get()),
+            ass_renderer_done
+    );
     if (!renderer) {
         __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "ass_renderer_init is null");
         return;
     }
     // TODO, set avec la taille de l'écran
     // Il faut appeler ces méthodes, car la doc de ass_renderer_init le mentionne
-    ass_set_storage_size(renderer, 100, 100);
-    ass_set_frame_size(renderer, 100, 100);
-    ass_set_fonts(renderer, nullptr, nullptr, ASS_FONTPROVIDER_AUTODETECT, nullptr, true);
+    ass_set_storage_size(renderer.get(), 100, 100);
+    ass_set_frame_size(renderer.get(), 100, 100);
+    ass_set_fonts(renderer.get(), nullptr, nullptr, ASS_FONTPROVIDER_AUTODETECT, nullptr, true);
 
     // Logger les messages de libass
-    ass_set_message_cb(lib, libass_msg_callback, nullptr);
+    ass_set_message_cb(lib.get(), libass_msg_callback, nullptr);
 
     // Ajouter la font "C059-Roman.otf" à libass
-    ass_add_font(lib, fontFilename, fontBuffer, fontLength);
+    ass_add_font(lib.get(), fontFilename, fontBuffer.get(), fontLength);
 
     // Lire le fichier .ass avec libass
-    ASS_Track* track = ass_read_memory(lib, subtitleBuffer, subtitleLength, nullptr);
+    std::unique_ptr<ASS_Track, decltype(&ass_free_track)> track(
+            ass_read_memory(lib.get(), subtitleBuffer.get(), subtitleLength, nullptr),
+            ass_free_track
+    );
     if (!track) {
         __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "ass_read_memory is null");
         return;
     }
 
-    ASS_Image* ass_image = ass_render_frame(renderer, track, 0, nullptr);
+    ASS_Image* ass_image = ass_render_frame(renderer.get(), track.get(), 0, nullptr);
     // TODO - Afficher le bitmap de ass_image
-
-    ass_free_track(track);
-    ass_renderer_done(renderer);
-    ass_library_done(lib);
-    free(fontBuffer);
-    free(subtitleBuffer);
 }

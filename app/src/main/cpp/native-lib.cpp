@@ -107,7 +107,7 @@ Java_com_example_prototypelibass_MainActivity_renderASSFile(JNIEnv *env, jobject
         // Il faut appeler ces méthodes, car la doc de ass_renderer_init le mentionne
 
         // Set storage size and frame size dynamically avec la taille du window
-        // J'utilise le half size car on get des out of bounds avec buffer.width et buffer.height
+        // J'utilise le half size car on get des out of bounds avec buffer.width et buffer.height - ToDo faudrait voir la meilleur facon de faire ceci
         int half_width = buffer.width / 2;
         int half_height = buffer.height / 2;
         ass_set_storage_size(renderer.get(), half_width, half_height);
@@ -167,7 +167,22 @@ Java_com_example_prototypelibass_MainActivity_renderASSFile(JNIEnv *env, jobject
                         uint32_t pixel = (alpha << 24) | color; // ARGB
                         int index = dst_y * (buffer.stride/2) + dst_x;
                         if (index < half_height * (buffer.stride/2)) {
-                            windowPixels[index] = pixel;
+                            // logic pour blending provenant de chatGPT, c'est un peu mieux mais le blending n'est pas optimal - To-Do ameliorer le blending avec le background du window
+                            uint32_t bg_pixel = windowPixels[index];
+                            uint8_t bg_r = (bg_pixel >> 16) & 0xFF;
+                            uint8_t bg_g = (bg_pixel >> 8) & 0xFF;
+                            uint8_t bg_b = bg_pixel & 0xFF;
+
+                            uint8_t fg_r = (color >> 16) & 0xFF;
+                            uint8_t fg_g = (color >> 8) & 0xFF;
+                            uint8_t fg_b = color & 0xFF;
+
+                            uint8_t out_r = (alpha * fg_r + (255 - alpha) * bg_r) / 255;
+                            uint8_t out_g = (alpha * fg_g + (255 - alpha) * bg_g) / 255;
+                            uint8_t out_b = (alpha * fg_b + (255 - alpha) * bg_b) / 255;
+
+                            uint32_t blended_pixel = (0xFF << 24) | (out_r << 16) | (out_g << 8) | out_b;
+                            windowPixels[index] = blended_pixel;
                         } else {
                             __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Buffer access out of bounds at dst_x=%d, dst_y=%d, index=%d", dst_x, dst_y, index);
                             ANativeWindow_unlockAndPost(nativeWindow);

@@ -33,10 +33,9 @@ public class MainActivity extends AppCompatActivity {
         surfaceView.getHolder().addCallback(new SurfaceHolder.Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                // Load the bitmap from resources
-                Bitmap bitmap = BitmapFactory.decodeResource(getResources(), R.drawable.test_bitmap);
-                // Call native method to initialize ANativeWindow and render the bitmap
-                initNativeWindow(holder.getSurface(), bitmap);
+                // Call native method to render ASS file
+                AssetManager assetManager = getAssets();
+                renderASSFile(holder.getSurface(), assetManager);
             }
 
             @Override
@@ -56,8 +55,8 @@ public class MainActivity extends AppCompatActivity {
         TextView tv = binding.sampleText;
         tv.setText(stringFromJNI());
 
-        AssetManager assetManager = getAssets();
-        renderASSFile(assetManager);
+        //AssetManager assetManager = getAssets();
+        //renderASSFile(assetManager);
     }
 
     /**
@@ -65,8 +64,7 @@ public class MainActivity extends AppCompatActivity {
      * which is packaged with this application.
      */
     public native String stringFromJNI();
-    public native void renderASSFile(AssetManager assetManager);
-
-    public native void initNativeWindow(Object surface, Bitmap bitmap);
+    public native void renderASSFile(Object surface, AssetManager assetManager);
+    //public native void initNativeWindow(Object surface, Bitmap bitmap);
     public native void releaseNativeWindow();
 }

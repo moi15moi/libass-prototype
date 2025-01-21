@@ -205,61 +205,6 @@ Java_com_example_prototypelibass_MainActivity_renderASSFile(JNIEnv *env, jobject
 }
 
 extern "C" JNIEXPORT void JNICALL
-Java_com_example_prototypelibass_MainActivity_initNativeWindow(
-        JNIEnv* env,
-        jobject /* this */,
-        jobject surface,
-        jobject bitmap) {
-    if (nativeWindow) {
-        ANativeWindow_release(nativeWindow);
-    }
-    nativeWindow = ANativeWindow_fromSurface(env, surface);
-
-    if (nativeWindow == nullptr) {
-        __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Failed to get native window from surface");
-        return;
-    }
-
-    // Lock the ANativeWindow
-    ANativeWindow_Buffer buffer;
-    if (ANativeWindow_lock(nativeWindow, &buffer, nullptr) == 0) {
-        __android_log_print(ANDROID_LOG_INFO, "NativeWindow", "Successfully locked the native window");
-
-        // Lock the bitmap
-        AndroidBitmapInfo bitmapInfo;
-        void* bitmapPixels;
-        if (AndroidBitmap_getInfo(env, bitmap, &bitmapInfo) < 0) {
-            __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Failed to get bitmap info");
-            ANativeWindow_unlockAndPost(nativeWindow);
-            return;
-        }
-        if (AndroidBitmap_lockPixels(env, bitmap, &bitmapPixels) < 0) {
-            __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Failed to lock bitmap pixels");
-            ANativeWindow_unlockAndPost(nativeWindow);
-            return;
-        }
-
-        // Copy the bitmap pixels to the ANativeWindow buffer
-        uint32_t* windowPixels = (uint32_t*)buffer.bits;
-        uint32_t* bitmapPixels32 = (uint32_t*)bitmapPixels;
-        for (int y = 0; y < buffer.height && y < bitmapInfo.height; ++y) {
-            for (int x = 0; x < buffer.width && x < bitmapInfo.width; ++x) {
-                windowPixels[y * buffer.stride + x] = bitmapPixels32[y * bitmapInfo.stride / 4 + x];
-            }
-        }
-
-        // Unlock the bitmap
-        AndroidBitmap_unlockPixels(env, bitmap);
-
-        // Unlock and post the ANativeWindow
-        ANativeWindow_unlockAndPost(nativeWindow);
-        __android_log_print(ANDROID_LOG_INFO, "NativeWindow", "Successfully unlocked and posted the native window");
-    } else {
-        __android_log_print(ANDROID_LOG_ERROR, "NativeWindow", "Failed to lock the native window");
-    }
-}
-
-extern "C" JNIEXPORT void JNICALL
 Java_com_example_prototypelibass_MainActivity_releaseNativeWindow(
         JNIEnv* env,
         jobject /* this */) {

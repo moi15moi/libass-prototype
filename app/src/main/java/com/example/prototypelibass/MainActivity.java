@@ -65,6 +65,5 @@ public class MainActivity extends AppCompatActivity {
      */
     public native String stringFromJNI();
     public native void renderASSFile(Object surface, AssetManager assetManager);
-    //public native void initNativeWindow(Object surface, Bitmap bitmap);
     public native void releaseNativeWindow();
 }

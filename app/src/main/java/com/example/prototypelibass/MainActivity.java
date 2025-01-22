@@ -3,8 +3,14 @@ package com.example.prototypelibass;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.content.res.AssetManager;
+import android.graphics.PixelFormat;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.TextView;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 
 import com.example.prototypelibass.databinding.ActivityMainBinding;
 
@@ -16,6 +22,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private ActivityMainBinding binding;
+    private SurfaceView surfaceView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -24,12 +31,35 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        surfaceView = findViewById(R.id.surfaceView);
+        SurfaceHolder surfaceHolder = surfaceView.getHolder();
+        // Forcer le format à RGBA (le format dépend de la méthode de blending utilisé)
+        surfaceHolder.setFormat(PixelFormat.RGBA_8888);
+        surfaceHolder.addCallback(new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                // Call native method to render ASS file
+                AssetManager assetManager = getAssets();
+                renderASSFile(holder.getSurface(), assetManager);
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                // To-Do handle le changement au SurfaceView tels que les rotation du window et les resizes
+                Log.d("JAVA", String.format("surfaceChanged has been called. width: %d, height: %d", width, height));
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                // Call native method to release ANativeWindow
+                releaseNativeWindow();
+            }
+        });
+
+
         // Example of a call to a native method
         TextView tv = binding.sampleText;
         tv.setText(stringFromJNI());
-
-        AssetManager assetManager = getAssets();
-        renderASSFile(assetManager);
     }
 
     /**
@@ -37,5 +67,6 @@ public class MainActivity extends AppCompatActivity {
      * which is packaged with this application.
      */
     public native String stringFromJNI();
-    public native void renderASSFile(AssetManager assetManager);
+    public native void renderASSFile(Object surface, AssetManager assetManager);
+    public native void releaseNativeWindow();
 }

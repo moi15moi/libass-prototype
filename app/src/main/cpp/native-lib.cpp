@@ -47,7 +47,7 @@ std::unique_ptr<char[]> read_asset_file(AAssetManager* assetManager, const char*
             AAsset_close
     );
     if (!asset) {
-        __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "Failed to open asset: %s", filename);
+        __android_log_print(ANDROID_LOG_ERROR, "TRACKERS", "Failed to open asset: %s", filename);
         return nullptr;
     }
 
@@ -95,7 +95,7 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
             ass_library_done
     );
     if (!lib) {
-        __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "ass_library_init failed");
+        __android_log_print(ANDROID_LOG_ERROR, "TRACKERS", "ass_library_init failed");
         return nullptr;
     }
 
@@ -106,7 +106,7 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
             ass_renderer_done
     );
     if (!renderer) {
-        __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "ass_renderer_init failed");
+        __android_log_print(ANDROID_LOG_ERROR, "TRACKERS", "ass_renderer_init failed");
         return nullptr;
     }
 
@@ -120,13 +120,13 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
             ass_free_track
     );
     if (!track) {
-        __android_log_print(ANDROID_LOG_DEBUG, "TRACKERS", "ass_read_memory failed");
+        __android_log_print(ANDROID_LOG_ERROR, "TRACKERS", "ass_read_memory failed");
         return nullptr;
     }
 
     ASS_Image* ass_image = ass_render_frame(renderer.get(), track.get(), timestamp, nullptr);
     if (!ass_image) {
-        __android_log_print(ANDROID_LOG_DEBUG, "SUBTITLE_RENDER", "No subtitle image rendered");
+        __android_log_print(ANDROID_LOG_ERROR, "SUBTITLE_RENDER", "No subtitle image rendered");
         return nullptr;
     }
 
@@ -156,7 +156,7 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
         return nullptr;
     }
 
-    memset(pixels, 0, bitmapInfo.width * bitmapInfo.height * 4);
+    memset(pixels, 0, bitmapInfo.stride * bitmapInfo.height);
 
     for (ASS_Image* img = ass_image; img; img = img->next) {
         uint8_t* dst = reinterpret_cast<uint8_t *>(pixels) + img->dst_y * bitmapInfo.stride + img->dst_x * 4;

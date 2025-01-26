@@ -3,8 +3,8 @@ package com.example.prototypelibass;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.os.Bundle;
-import android.util.DisplayMetrics;
 import android.util.Log;
+import android.view.ViewTreeObserver;
 import android.widget.ImageView;
 
 import androidx.appcompat.app.AppCompatActivity;
@@ -29,24 +29,26 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        // Récupération des dimensions de l'écran
-        DisplayMetrics displayMetrics = getDisplayMetrics();
+        // Récupérer l'ImageView
+        ImageView subtitleView = findViewById(R.id.subtitle_view);
 
-        // Tentative de rendu du sous-titre
-        Bitmap subtitleBitmap = renderSubtitleFrame(getAssets(), displayMetrics.widthPixels, displayMetrics.heightPixels, 0);
-        displaySubtitle(subtitleBitmap);
-    }
+        // Utiliser un ViewTreeObserver pour récupérer les dimensions après la mise en page
+        subtitleView.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                // Récupérer les dimensions de l'ImageView
+                int imageViewWidth = subtitleView.getWidth();
+                int imageViewHeight = subtitleView.getHeight();
 
-    /**
-     * Récupère les dimensions de l'écran actuel.
-     *
-     * @return un objet DisplayMetrics contenant la largeur et la hauteur de l'écran.
-     */
-    private DisplayMetrics getDisplayMetrics() {
-        DisplayMetrics displayMetrics = new DisplayMetrics();
-        getWindowManager().getDefaultDisplay().getMetrics(displayMetrics);
-        Log.d("SCREEN_DIMENSIONS", "Width: " + displayMetrics.widthPixels + ", Height: " + displayMetrics.heightPixels);
-        return displayMetrics;
+                // Tentative de rendu du sous-titre
+                Bitmap subtitleBitmap = renderSubtitleFrame(getAssets(), imageViewWidth, imageViewHeight, 0);
+                displaySubtitle(subtitleBitmap);
+
+                // Retirer le listener pour éviter de le déclencher à chaque dessin
+                subtitleView.getViewTreeObserver().removeOnPreDrawListener(this);
+                return true;
+            }
+        });
     }
 
     /**

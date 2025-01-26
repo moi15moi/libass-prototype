@@ -112,7 +112,7 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
 
     ass_set_storage_size(renderer.get(), screenWidth, screenHeight);
     ass_set_frame_size(renderer.get(), screenWidth, screenHeight);
-    ass_set_fonts(renderer.get(), nullptr, "Sans", ASS_FONTPROVIDER_AUTODETECT, nullptr, true);
+    ass_set_fonts(renderer.get(), nullptr, nullptr, ASS_FONTPROVIDER_AUTODETECT, nullptr, true);
     ass_add_font(lib.get(), "C059-Roman.otf", fontBuffer.get(), fontLength);
 
     std::unique_ptr<ASS_Track, decltype(&ass_free_track)> track(

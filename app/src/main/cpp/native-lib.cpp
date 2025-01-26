@@ -54,7 +54,7 @@ std::unique_ptr<char[]> read_asset_file(AAssetManager* assetManager, const char*
     length = AAsset_getLength(asset.get());
     std::unique_ptr<char[]> buffer = std::make_unique<char[]>(length + 1);
     AAsset_read(asset.get(), buffer.get(), length);
-    buffer[length] = '\0';
+
     return buffer;
 }
 

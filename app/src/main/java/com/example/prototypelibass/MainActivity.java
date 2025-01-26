@@ -21,10 +21,9 @@ public class MainActivity extends AppCompatActivity {
         System.loadLibrary("prototypelibass");
     }
 
-    private ActivityMainBinding binding;
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        ActivityMainBinding binding;
         super.onCreate(savedInstanceState);
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -42,7 +41,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // Tentative de rendu du sous-titre
                 Bitmap subtitleBitmap = renderSubtitleFrame(getAssets(), imageViewWidth, imageViewHeight, 0);
-                displaySubtitle(subtitleBitmap);
+                displaySubtitle(subtitleView, subtitleBitmap);
 
                 // Retirer le listener pour éviter de le déclencher à chaque dessin
                 subtitleView.getViewTreeObserver().removeOnPreDrawListener(this);
@@ -54,11 +53,11 @@ public class MainActivity extends AppCompatActivity {
     /**
      * Affiche l'image du sous-titre dans un ImageView.
      *
+     * @param subtitleView l'ImageView dans lequel afficher le bitmap.
      * @param subtitleBitmap le bitmap à afficher dans l'ImageView.
      */
-    private void displaySubtitle(Bitmap subtitleBitmap) {
+    private void displaySubtitle(ImageView subtitleView, Bitmap subtitleBitmap) {
         if (subtitleBitmap != null) {
-            ImageView subtitleView = findViewById(R.id.subtitle_view);
             subtitleView.setImageBitmap(subtitleBitmap);
             Log.d("SUBTITLE_RENDER", "Bitmap width: " + subtitleBitmap.getWidth() +
                     ", height: " + subtitleBitmap.getHeight());

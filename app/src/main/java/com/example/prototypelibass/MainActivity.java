@@ -33,12 +33,8 @@ public class MainActivity extends AppCompatActivity {
         DisplayMetrics displayMetrics = getDisplayMetrics();
 
         // Tentative de rendu du sous-titre
-        try {
-            Bitmap subtitleBitmap = renderSubtitleFrame(getAssets(), displayMetrics.widthPixels, displayMetrics.heightPixels, 0);
-            displaySubtitle(subtitleBitmap);
-        } catch (Exception e) {
-            Log.e("MainActivity", "Erreur lors du rendu du fichier ASS", e);
-        }
+        Bitmap subtitleBitmap = renderSubtitleFrame(getAssets(), displayMetrics.widthPixels, displayMetrics.heightPixels, 0);
+        displaySubtitle(subtitleBitmap);
     }
 
     /**

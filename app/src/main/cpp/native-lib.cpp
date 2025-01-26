@@ -6,8 +6,6 @@
 #include <android/bitmap.h>
 #include "ass/ass.h"
 #include "ass/ass_types.h"
-#include <cstring>
-#include <memory>
 
 static void draw_ass_rgba(uint8_t *dst, ptrdiff_t dst_stride,
                           const uint8_t *src, ptrdiff_t src_stride,

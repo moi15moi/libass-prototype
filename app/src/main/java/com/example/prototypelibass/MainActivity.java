@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d("SUBTITLE_RENDER", "Bitmap width: " + subtitleBitmap.getWidth() +
                     ", height: " + subtitleBitmap.getHeight());
         } else {
-            Log.e("SUBTITLE_RENDER", "Le bitmap du sous-titre est nul");
+            Log.e("SUBTITLE_RENDER", "Le bitmap du sous-titre est null");
         }
     }
 

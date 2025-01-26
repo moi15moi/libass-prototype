@@ -11,10 +11,10 @@ static void draw_ass_rgba(uint8_t *dst, ptrdiff_t dst_stride,
                           const uint8_t *src, ptrdiff_t src_stride,
                           int w, int h, uint32_t color)
 {
-    const unsigned int r = (color >> 24) & 0xff;
-    const unsigned int g = (color >> 16) & 0xff;
-    const unsigned int b = (color >>  8) & 0xff;
     const unsigned int a = 0xff - (color & 0xff);
+    const unsigned int b = (color >> 24) & 0xff;
+    const unsigned int g = (color >> 16) & 0xff;
+    const unsigned int r = (color >>  8) & 0xff;
 
     for (int y = 0; y < h; y++) {
         auto *dstrow = (uint32_t *) dst;
@@ -160,7 +160,7 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
 
     for (ASS_Image* img = ass_image; img; img = img->next) {
         uint8_t* dst = reinterpret_cast<uint8_t *>(pixels) + img->dst_y * bitmapInfo.stride + img->dst_x * 4;
-        draw_ass_rgba(dst, bitmapInfo.stride, img->bitmap, img->stride, img->w, img->h, img->color);
+        draw_ass_rgba(dst, (ptrdiff_t)bitmapInfo.stride, img->bitmap, img->stride, img->w, img->h, img->color);
     }
 
     AndroidBitmap_unlockPixels(env, bitmap);

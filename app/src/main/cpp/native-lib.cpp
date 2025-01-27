@@ -7,14 +7,16 @@
 #include "ass/ass.h"
 #include "ass/ass_types.h"
 
+
+// Provient de mpv: https://github.com/mpv-player/mpv/blob/bc96b23ef686d29efe95d54a4fd1836c177d7a61/sub/draw_bmp.c#L295-L338
 static void draw_ass_rgba(uint8_t *dst, ptrdiff_t dst_stride,
                           const uint8_t *src, ptrdiff_t src_stride,
                           int w, int h, uint32_t color)
 {
-    const unsigned int a = 0xff - (color & 0xff);
-    const unsigned int b = (color >> 24) & 0xff;
+    const unsigned int r = (color >> 24) & 0xff;
     const unsigned int g = (color >> 16) & 0xff;
-    const unsigned int r = (color >>  8) & 0xff;
+    const unsigned int b = (color >>  8) & 0xff;
+    const unsigned int a = 0xff - (color & 0xff);
 
     for (int y = 0; y < h; y++) {
         auto *dstrow = (uint32_t *) dst;
@@ -22,15 +24,15 @@ static void draw_ass_rgba(uint8_t *dst, ptrdiff_t dst_stride,
             const unsigned int v = src[x];
             unsigned int aa = a * v;
             uint32_t dstpix = dstrow[x];
-            unsigned int dstb =  dstpix & 0xFF;
+            unsigned int dstr =  dstpix & 0xFF;
             unsigned int dstg = (dstpix >>  8) & 0xFF;
-            unsigned int dstr = (dstpix >> 16) & 0xFF;
+            unsigned int dstb = (dstpix >> 16) & 0xFF;
             unsigned int dsta = (dstpix >> 24) & 0xFF;
             dstb = (v * b * a   + dstb * (255 * 255 - aa)) / (255 * 255);
             dstg = (v * g * a   + dstg * (255 * 255 - aa)) / (255 * 255);
             dstr = (v * r * a   + dstr * (255 * 255 - aa)) / (255 * 255);
             dsta = (aa * 255    + dsta * (255 * 255 - aa)) / (255 * 255);
-            dstrow[x] = dstb | (dstg << 8) | (dstr << 16) | (dsta << 24);
+            dstrow[x] = dstr | (dstg << 8) | (dstb << 16) | (dsta << 24);
         }
         dst += dst_stride;
         src += src_stride;

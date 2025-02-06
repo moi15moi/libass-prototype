@@ -15,24 +15,22 @@
 static void draw_ass_rgba(uint8_t *dst, ptrdiff_t dst_stride,
                           const uint8_t *src, ptrdiff_t src_stride,
                           int w, int h, uint32_t color) {
-    // 1. Extraction CORRECTE du format BBGGRRAA de libass
-    const unsigned int ass_b = (color >> 24) & 0xff; // Bleu (bits 24-31)
+    // 1. Extraction CORRECTE du format RGBA de libass
+    const unsigned int ass_r = (color >> 24) & 0xff; // Rouge (bits 24-31)
     const unsigned int ass_g = (color >> 16) & 0xff; // Vert (bits 16-23)
-    const unsigned int ass_r = (color >> 8) & 0xff; // Rouge (bits 8-15)
+    const unsigned int ass_b = (color >>  8) & 0xff; // Bleu (bits 8-15)
     const unsigned int ass_a = 0xff - (color & 0xff); // Alpha inversé (ASS utilise 0 = opaque)
 
     // Parcours de tous les pixels de l'image
     for (int y = 0; y < h; y++) {
-        auto *dstrow = (uint32_t *) dst;
         for (int x = 0; x < w; x++) {
             const unsigned int v = src[x]; // Alpha du sous-titre
 
-            // 2. Extraction des composantes DESTINATION (ARGB Android)
-            uint32_t dst_pixel = dstrow[x];
-            unsigned int dst_a = (dst_pixel >> 24) & 0xFF;
-            unsigned int dst_r = (dst_pixel >> 16) & 0xFF;
-            unsigned int dst_g = (dst_pixel >> 8) & 0xFF;
-            unsigned int dst_b = dst_pixel & 0xFF;
+            // 2. Extraction des composantes DESTINATION (ANDROID_BITMAP_FORMAT_RGBA_8888.)
+            unsigned int dst_r = dst[x * 4 + 0];
+            unsigned int dst_g = dst[x * 4 + 1];
+            unsigned int dst_b = dst[x * 4 + 2];
+            unsigned int dst_a = dst[x * 4 + 3];
 
             // 3. Calcul du blending alpha
             unsigned int aa = ass_a * v;
@@ -44,8 +42,11 @@ static void draw_ass_rgba(uint8_t *dst, ptrdiff_t dst_stride,
             unsigned int out_b = (v * ass_b * ass_a + dst_b * blend_factor) / (255 * 255);
             unsigned int out_a = (aa * 255 + dst_a * blend_factor) / (255 * 255);
 
-            // 4. Réassemblage en ARGB pour Android
-            dstrow[x] = (out_a << 24) | (out_r << 16) | (out_g << 8) | out_b;
+            // 4. Réassemblage en RBGA pour Android
+            dst[x * 4 + 0] = out_r;
+            dst[x * 4 + 1] = out_g;
+            dst[x * 4 + 2] = out_b;
+            dst[x * 4 + 3] = out_a;
         }
         dst += dst_stride;
         src += src_stride;

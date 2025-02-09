@@ -168,26 +168,33 @@ build_libass() {
     echo "Building libass..."
     cd "$SCRIPT_DIR"
 
-    if [ ! -d libass-0.17.3 ]; then
-        echo "Downloading and extracting libass..."
-        wget -O libass-0.17.3.tar.xz https://github.com/libass/libass/releases/download/0.17.3/libass-0.17.3.tar.xz
-        tar -xf libass-0.17.3.tar.xz
+    cd libass
+
+    ./autogen.sh
+
+    # There is an exception for armv7a: https://developer.android.com/ndk/guides/other_build_systems?hl=en
+    local bin_util_prefix=""
+    if [ "$CPU" == "armv7a" ]; then
+        bin_util_prefix=arm-linux-androideabi
+    else
+        bin_util_prefix=$TARGET
     fi
 
-    cd libass-0.17.3
-
+    local LDFLAGS="-L$TOOLCHAIN/sysroot/usr/lib/$bin_util_prefix/$ANDROID_ABI_VERSION -landroid"
+    local CFLAGS="-I$TOOLCHAIN/sysroot/usr/include/android"
     ./configure --host=$TARGET \
                 --enable-static \
                 --disable-shared \
                 --with-pic \
-                --disable-require-system-font-provider
+                --enable-android-ndk \
+                ANDROID_LIBS="$LDFLAGS" \
+                ANDROID_CFLAGS="$CFLAGS"
 
     make -j$(nproc)
     make DESTDIR="$ABS_BUILD_PATH" install
     make distclean
 
     cd "$SCRIPT_DIR"
-    rm -f libass-0.17.3.tar.xz
 }
 
 

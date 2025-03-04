@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import androidx.media3.common.Effect;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.Player;
+import androidx.media3.common.VideoSize;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
@@ -31,6 +32,9 @@ import androidx.media3.effect.OverlayEffect;
     private PlayerView playerView;
 
     private static final String TAG = "MainActivity";
+
+    // Reference to the subtitle overlay for later updating
+    private LibassSubtitleOverlay currentSubtitleOverlay;
 
     // Used to load the 'prototypelibass' library on application startup.
     static {
@@ -63,16 +67,22 @@ import androidx.media3.effect.OverlayEffect;
                  player = new ExoPlayer.Builder(this).build();
                  playerView.setPlayer(player);
 
-                 // Create subtitle overlay
-                 int defaultWidth = 1020;
-                 int defaultHeight = 820;
-                 LibassSubtitleOverlay subtitleOverlay = new LibassSubtitleOverlay(this, defaultWidth, defaultHeight);
+                 // Add this player as a listener to receive video size changes
+                 player.addListener(this);
+
+                 // Initial default dimensions - these will be updated when video size is known
+                 int defaultWidth = 1280;  // Standard default
+                 int defaultHeight = 720;  // Standard default
+
+                 // Create subtitle overlay with initial dimensions
+                 currentSubtitleOverlay = new LibassSubtitleOverlay(this, defaultWidth, defaultHeight);
 
                  List<Effect> effects = new ArrayList<>();
-                 effects.add(new OverlayEffect(ImmutableList.of(subtitleOverlay)));
+                 effects.add(new OverlayEffect(ImmutableList.of(currentSubtitleOverlay)));
 
                  // Apply effects before setting media item
-                 Log.d(TAG, "Applying video effects to player");
+                 Log.d(TAG, "Applying video effects to player with initial dimensions: " +
+                         defaultWidth + "x" + defaultHeight);
                  player.setVideoEffects(effects);
 
                  // Set media item and play
@@ -89,6 +99,45 @@ import androidx.media3.effect.OverlayEffect;
          }
      }
 
+    /**
+     * Handle video size changes to update the subtitle overlay dimensions.
+     * This is called when the player learns the actual dimensions of the video.
+     */
+    @Override
+    public void onVideoSizeChanged(VideoSize videoSize) {
+        if (videoSize.width > 0 && videoSize.height > 0) {
+            Log.d(TAG, "Video size changed: " + videoSize.width + "x" + videoSize.height);
+
+            // Update the subtitle overlay with actual video dimensions
+            updateSubtitleOverlay(videoSize.width, videoSize.height);
+        }
+    }
+
+    /**
+     * Update the subtitle overlay with new dimensions.
+     * This creates a new overlay with the proper dimensions and applies it to the player.
+     */
+    private void updateSubtitleOverlay(int width, int height) {
+        try {
+            // Release the old overlay
+            if (currentSubtitleOverlay != null) {
+                currentSubtitleOverlay.release();
+            }
+
+            // Create a new overlay with updated dimensions
+            currentSubtitleOverlay = new LibassSubtitleOverlay(this, width, height);
+
+            // Apply the new overlay to the player
+            List<Effect> effects = new ArrayList<>();
+            effects.add(new OverlayEffect(ImmutableList.of(currentSubtitleOverlay)));
+            player.setVideoEffects(effects);
+
+            Log.d(TAG, "Updated subtitle overlay dimensions to: " + width + "x" + height);
+        } catch (Exception e) {
+            Log.e(TAG, "Error updating subtitle overlay: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Release the player when the activity is destroyed.

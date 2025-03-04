@@ -2,10 +2,9 @@ package com.example.prototypelibass;
 
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
+
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.effect.BitmapOverlay;
 import androidx.media3.effect.OverlaySettings;
@@ -14,7 +13,7 @@ import androidx.media3.effect.OverlaySettings;
     * Custom BitmapOverlay to render libass subtitles.
 */
 
-@UnstableApi public class LibassSubtitleOverlay extends BitmapOverlay{
+@UnstableApi public class LibassSubtitleOverlay extends BitmapOverlay {
     private static final String TAG = "LibassSubtitleOverlay";
 
     // Reference to main activity
@@ -29,7 +28,6 @@ import androidx.media3.effect.OverlaySettings;
 
     // Cache the last timestamps(ms) we rendered the subtitles for
     private long lastTimestamp = -1;
-    private Bitmap lastBitmap;
 
     // Cache current Bitmap being displayed.
     private Bitmap currentBitmap;
@@ -47,32 +45,49 @@ import androidx.media3.effect.OverlaySettings;
          this.videoHeight = videoHeight;
      }
 
-     /**
-      * Get subtitle Bitmap for the current playback position
-      * for everyframe during playback, we will call this method to get the subtitle bitmap
-      * Maybe to do optimization to check if we really need to re-render.
-      * 1. Call our native method to get our Bitmap
-      * 2. Return the bitmap to the overlay
-      */
-      @Override
-      public Bitmap getBitmap(long presentationTimeUs){
+    /**
+     * Get subtitle Bitmap for the current playback position
+    * for everyframe during playback, we will call this method to get the subtitle bitmap
+    * Maybe to do optimization to check if we really need to re-render.
+    * 1. Call our native method to get our Bitmap
+    * 2. Return the bitmap to the overlay
+    */
+    @Override
+    public Bitmap getBitmap(long presentationTimeUs) {
         // Convert timestamp to ms
         long timestamp = presentationTimeUs / 1000;
 
-        try{
-            // Call our RenderSubtitleFrame
-            Bitmap newBitmap = mainActivity.renderSubtitleFrame(assetManager, videoWidth, videoHeight,(int) timestamp);
-
-            // Update current Bitmap.
-            if (newBitmap != null){
-                currentBitmap = newBitmap;
-            }
-        }catch (Exception e)
-        {
-            Log.e(TAG, "Failed to render subtitle frame");
+        // Log every second
+        if (timestamp / 1000 != lastTimestamp / 1000) {
+            Log.d(TAG, "getBitmap called at timestamp: " + timestamp + "ms");
+            lastTimestamp = timestamp;
         }
-        return currentBitmap;
-      }
+
+
+        try {
+            // Now get subtitle from native code based on timestamp
+            Bitmap newBitmap = mainActivity.renderSubtitleFrame(assetManager, videoWidth, videoHeight, (int) timestamp);
+
+            if (newBitmap != null) {
+                // If native code returns a bitmap, use it
+                if (currentBitmap != null && currentBitmap != newBitmap) {
+                    // Recycle old bitmap to avoid memory leaks
+                    currentBitmap.recycle();
+                }
+                currentBitmap = newBitmap;
+                Log.d(TAG, "Updated bitmap from native code at: " + timestamp + "ms");
+            } else {
+                // If native code returns null (no subtitle at this timestamp),
+                // we can either return null or a transparent bitmap
+                Log.d(TAG, "Native code returned null bitmap at: " + timestamp + "ms");
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error rendering subtitle frame: " + e.getMessage());
+        }
+
+        return currentBitmap;  // Return whatever bitmap we have
+    }
+
 
     /**
      * Customize the overlay settings to position the subtitles on the video frame.
@@ -86,24 +101,14 @@ import androidx.media3.effect.OverlaySettings;
      * @param presentationTimeUs The presentation timestamp in microseconds
      * @return The OverlaySettings for positioning and displaying the subtitle
      */
-    @NonNull
     @Override
     public OverlaySettings getOverlaySettings(long presentationTimeUs) {
-        // Create settings to position the subtitles at the bottom of the frame
+        // Create settings to position the subtitles at the bottom center of the frame
         return new OverlaySettings.Builder()
-                // Alpha scale = 1.0 means fully opaque (no transparency) change later we want transparent
-                .setAlphaScale(1.0f)
-                
-                // Position bottom
-                // (0, -0.7) means center horizontally, and 70% down from the center (toward bottom)
-                .setBackgroundFrameAnchor(0, -0.7f)
-
-                .setOverlayFrameAnchor(0.5f, 0.5f) // Center the overlay on the screen
-
-                .setScale(1.0f, 1.0f) // Scale the overlay to the full width of the screen, but no height
-
-                // .setRotationDegrees(0) // If you need to rotate the overlay
-                
+                .setAlphaScale(1.0f) // Fully opaque
+                .setBackgroundFrameAnchor(0.0f, 0.7f) // Position at the bottom center of the screen
+                .setOverlayFrameAnchor(0.5f, 0.5f) // Align the center of the subtitle with the anchor point
+                .setScale(0.8f, 0.8f) // Scale to 80% of video width and 20% of height
                 .build();
     }
 
@@ -114,8 +119,7 @@ import androidx.media3.effect.OverlaySettings;
      */
     @Override
     public void release() {
-        // Release any resources used by the overlay
-        if (currentBitmap != null) {
+        if (currentBitmap != null && !currentBitmap.isRecycled()) {
             currentBitmap.recycle();
             currentBitmap = null;
         }

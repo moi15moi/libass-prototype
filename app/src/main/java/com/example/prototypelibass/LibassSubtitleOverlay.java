@@ -57,13 +57,6 @@ import androidx.media3.effect.OverlaySettings;
         // Convert timestamp to ms
         long timestamp = presentationTimeUs / 1000;
 
-        // Log every second
-        if (timestamp / 1000 != lastTimestamp / 1000) {
-            Log.d(TAG, "getBitmap called at timestamp: " + timestamp + "ms");
-            lastTimestamp = timestamp;
-        }
-
-
         try {
             // Now get subtitle from native code based on timestamp
             Bitmap newBitmap = mainActivity.renderSubtitleFrame(assetManager, videoWidth, videoHeight, (int) timestamp);

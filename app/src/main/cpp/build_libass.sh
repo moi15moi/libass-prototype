@@ -172,23 +172,11 @@ build_libass() {
 
     ./autogen.sh
 
-    # There is an exception for armv7a: https://developer.android.com/ndk/guides/other_build_systems?hl=en
-    local bin_util_prefix=""
-    if [ "$CPU" == "armv7a" ]; then
-        bin_util_prefix=arm-linux-androideabi
-    else
-        bin_util_prefix=$TARGET
-    fi
-
-    local LDFLAGS="-L$TOOLCHAIN/sysroot/usr/lib/$bin_util_prefix/$ANDROID_ABI_VERSION -landroid"
-    local CFLAGS="-I$TOOLCHAIN/sysroot/usr/include/android"
     ./configure --host=$TARGET \
                 --enable-static \
                 --disable-shared \
                 --with-pic \
-                --enable-android-ndk \
-                ANDROID_LIBS="$LDFLAGS" \
-                ANDROID_CFLAGS="$CFLAGS"
+                --enable-android
 
     make -j$(nproc)
     make DESTDIR="$ABS_BUILD_PATH" install

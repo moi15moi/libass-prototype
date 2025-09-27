@@ -2,6 +2,7 @@ package com.example.prototypelibass;
 
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
+import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.ViewTreeObserver;
@@ -15,6 +16,7 @@ import com.example.prototypelibass.databinding.ActivityMainBinding;
  * Activity principale de l'application qui charge les sous-titres et les affiche sur l'écran.
  */
 public class MainActivity extends AppCompatActivity {
+    private GLSurfaceView glView;
 
     // Used to load the 'prototypelibass' library on application startup.
     static {
@@ -28,11 +30,16 @@ public class MainActivity extends AppCompatActivity {
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        glView = findViewById(R.id.gl_view);
+        glView.setEGLContextClientVersion(3); // use GLES2
+        glView.setRenderer(new Renderer(getAssets()));
+
+
         // Récupérer l'ImageView
-        ImageView subtitleView = findViewById(R.id.subtitle_view);
+        //ImageView subtitleView = findViewById(R.id.subtitle_view);
 
         // Utiliser un ViewTreeObserver pour récupérer les dimensions après la mise en page
-        subtitleView.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
+        /*subtitleView.getViewTreeObserver().addOnPreDrawListener(new ViewTreeObserver.OnPreDrawListener() {
             @Override
             public boolean onPreDraw() {
                 // Récupérer les dimensions de l'ImageView
@@ -47,7 +54,7 @@ public class MainActivity extends AppCompatActivity {
                 subtitleView.getViewTreeObserver().removeOnPreDrawListener(this);
                 return true;
             }
-        });
+        });*/
     }
 
     /**
@@ -81,5 +88,14 @@ public class MainActivity extends AppCompatActivity {
      * @param timestamp le timestamp pour déterminer quel sous-titre doit être affiché.
      * @return un bitmap représentant le cadre du sous-titre.
      */
-    public native Bitmap renderSubtitleFrame(AssetManager assetManager, int screenWidth, int screenHeight, int timestamp);
+    public static native Integer renderSubtitleFrame(AssetManager assetManager, int screenWidth, int screenHeight, int timestamp, Long context);
+
+
+
+    //public native Integer nativeAssRenderFrame(long context, long ass_renderer, long ass_track, long time, boolean onlyAlpha, int width, int height);
+
+    public static native long nativeInitializeLibplacebo();
+
+    public native void nativeUninitializeLibplacebo(long context);
+
 }

@@ -5,17 +5,19 @@
 # Sets the minimum CMake version required for this project.
 cmake_minimum_required(VERSION 3.22.1)
 
+
+
 # Declares the project name. The project name can be accessed via ${ PROJECT_NAME},
 # Since this is the top level CMakeLists.txt, the project name is also accessible
 # with ${CMAKE_PROJECT_NAME} (both CMake variables are in-sync within the top level
 # build script scope).
 project("prototypelibass")
 
-set(libass_build_location "${CMAKE_CURRENT_SOURCE_DIR}/${ANDROID_ABI}")
-set(libass_binaries "${libass_build_location}/usr/local/lib")
+set(libass_build_location "${CMAKE_CURRENT_SOURCE_DIR}/build_native_lib/${ANDROID_ABI}")
+set(libass_binaries "${libass_build_location}/lib")
 
-foreach(libass_lib fribidi harfbuzz unibreak freetype ass)
-    set(libass_lib_filename lib${libass_lib}.a)
+foreach(libass_lib fribidi harfbuzz unibreak freetype expat fontconfig ass placebo)
+    set(libass_lib_filename lib${libass_lib}.so)
     set(libass_lib_file_path ${libass_binaries}/${libass_lib_filename})
 
     add_library(
@@ -28,7 +30,7 @@ foreach(libass_lib fribidi harfbuzz unibreak freetype ass)
             ${libass_lib_file_path})
 endforeach()
 
-include_directories("${libass_build_location}/usr/local/include")
+include_directories("${libass_build_location}/include")
 
 # Creates and names a library, sets it as either STATIC
 # or SHARED, and provides the relative paths to its source code.
@@ -59,4 +61,11 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
         fribidi
         harfbuzz
         unibreak
-        freetype)
+        freetype
+        expat
+fontconfig
+placebo
+        EGL
+        GLESv3)
+
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wno-address-of-temporary)

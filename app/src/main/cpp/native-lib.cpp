@@ -7,6 +7,171 @@
 #include "ass/ass.h"
 #include "ass/ass_types.h"
 
+#include <EGL/egl.h>   // On Android you already have EGL context active
+#include <GLES3/gl3.h>
+#include "libplacebo/log.h"
+#include "libplacebo/renderer.h"
+#include "libplacebo/opengl.h"
+#include "libplacebo/utils/upload.h"
+
+#define LOG_TAG "SubtitleRenderer"
+
+
+typedef struct libplacebo_context {
+    pl_log pllog;
+    pl_opengl plgl;
+    pl_renderer renderer;
+    pl_fmt format_r8;
+    pl_fmt format_rgba8;
+} LibplaceboContext;
+
+jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
+                             jlong context,
+                             jlong render,
+                             jlong track,
+                             jlong time,
+                             jboolean onlyAlpha,
+                             jint width,
+                             jint height) {
+    if (!context) return NULL;
+
+    LibplaceboContext* ctx = (LibplaceboContext*)context;
+
+    struct timespec start, end;
+    clock_gettime(CLOCK_MONOTONIC, &start);
+
+    int changed;
+    ASS_Image *image = ass_render_frame((ASS_Renderer *) render, (ASS_Track *) track, time, &changed);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+
+    double elapsed_ms = (end.tv_sec - start.tv_sec) * 1000.0 +
+                        (end.tv_nsec - start.tv_nsec) / 1000000.0;
+
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "ass_render_frame took %.3f ms", elapsed_ms);
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "ass_render_frame resolution %ix%i", width, height);
+
+    if (image == NULL) {
+        return NULL;
+    }
+
+    struct pl_tex_params out_params = {
+            .w = image->w,
+            .h = image->h,
+            .format = ctx->format_r8,
+            .renderable = true,
+            .host_readable = true,
+            .host_writable = true,
+            .blit_dst = true,
+            .sampleable = true,
+    };
+
+    EGLDisplay d = eglGetCurrentDisplay();
+    EGLContext c = eglGetCurrentContext();
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "egl current display=%p context=%p", (void*)d, (void*)c);
+
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Before pl_tex_create");
+    pl_tex src_tex = pl_tex_create(ctx->plgl->gpu, &out_params);
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "After pl_tex_create");
+
+    if (!src_tex) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create output texture");
+        return NULL;
+    }
+
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Ass image is %ix%i", image->w, image->h);
+
+    // TODO Utiliser posix_memalign
+    bool is_ok = pl_tex_upload(ctx->plgl->gpu, &(struct pl_tex_transfer_params) {
+            .tex        = src_tex,
+            .rc         = { .x1 = image->w, .y1 = image->h, },
+            .row_pitch  = static_cast<size_t>(image->stride),
+            .ptr        = image->bitmap,
+    });
+    if (!is_ok) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to pl_tex_upload");
+        pl_tex_destroy(ctx->plgl->gpu, &src_tex);
+        return NULL;
+    }
+
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "pl_tex_upload finished");
+
+    struct pl_overlay_part part = {
+            .src = { static_cast<float>(image->dst_x), static_cast<float>(image->dst_y), static_cast<float>(image->dst_x + image->w), static_cast<float>(image->dst_y + image->h) },
+            .dst = { static_cast<float>(image->dst_x), static_cast<float>(image->dst_y), static_cast<float>(image->dst_x + image->w), static_cast<float>(image->dst_y + image->h) },
+            .color = {
+                    (image->color >> 24) / 255.0f,
+                    ((image->color >> 16) & 0xFF) / 255.0f,
+                    ((image->color >> 8) & 0xFF) / 255.0f,
+                    (255 - (image->color & 0xFF)) / 255.0f,
+            }
+    };
+
+    struct pl_overlay overlayl = {
+            .tex = src_tex,
+            .parts = &part,
+            .num_parts = 1,
+            .mode = PL_OVERLAY_MONOCHROME,
+            .color = {
+                    .primaries = PL_COLOR_PRIM_BT_709,
+                    .transfer = PL_COLOR_TRC_SRGB,
+            },
+            .repr = {
+                    .alpha = PL_ALPHA_INDEPENDENT
+            }
+    };
+
+
+    struct pl_tex_params dst_params = {
+            .w = width,
+            .h = height,
+            .format = ctx->format_rgba8,
+            .renderable = true,
+            .host_readable = true,
+            .host_writable = true,
+            .blit_dst = true,
+            .sampleable = true,
+    };
+    pl_tex dst_tex = pl_tex_create(ctx->plgl->gpu, &dst_params);
+    if (!dst_tex) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create output texture");
+        return NULL;
+    }
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "pl_tex_create finished");
+
+    unsigned int target_type, iformat, fbo;
+    GLuint tex_id = pl_opengl_unwrap(ctx->plgl->gpu, dst_tex, &target_type, (int *)&iformat, &fbo);
+
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Libplacebo output GL texture ID: %u target_type=%u iformat=%u fbo=%u", tex_id, target_type, iformat, fbo);
+
+    struct pl_frame target = {
+            .repr = pl_color_repr_rgb,
+            .num_planes = 1,
+            .planes[0] = {
+                    .texture = dst_tex,
+                    .components = 4,
+                    .component_mapping = {0, 1, 2, 3},
+            },
+            .overlays = &overlayl,
+            .num_overlays = 1,
+    };
+
+    is_ok = pl_render_image(ctx->renderer, NULL, &target, &pl_render_default_params);
+    if (!is_ok) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to pl_render_image");
+        pl_tex_destroy(ctx->plgl->gpu, &src_tex);
+        return NULL;
+    }
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "pl_render_image finished");
+
+    GLenum erro = glGetError();
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Error libplacebo is %i", erro);
+
+    jclass integerClass = env->FindClass("java/lang/Integer");
+    jmethodID constructor = env->GetMethodID(integerClass, "<init>", "(I)V");
+    return env->NewObject(integerClass, constructor, (jint) tex_id);
+}
+
+
 
 // Fonction de rendu RGBA adaptée de mpv-player
 // Mélange les pixels des sous-titres (src) avec le buffer de destination (dst)
@@ -105,7 +270,8 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
         jobject asset_manager,
         jint screenWidth,
         jint screenHeight,
-        jint timestamp
+        jint timestamp,
+        jlong context
 ) {
     // Récupération de l'AssetManager natif
     AAssetManager *g_assetManager = AAssetManager_fromJava(env, asset_manager);
@@ -161,50 +327,116 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
         return nullptr;
     }
 
-    // Création d'un Bitmap Android via JNI
-    jclass bitmapClass = env->FindClass("android/graphics/Bitmap");
-    jmethodID createBitmapMethod = env->GetStaticMethodID(
-            bitmapClass,
-            "createBitmap",
-            "(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;"
-    );
 
-    // Création d'un Bitmap ARGB_8888
-    jobject bitmap = env->CallStaticObjectMethod(
-            bitmapClass,
-            createBitmapMethod,
-            screenWidth,
-            screenHeight,
-            env->GetStaticObjectField(
-                    env->FindClass("android/graphics/Bitmap$Config"),
-                    env->GetStaticFieldID(env->FindClass("android/graphics/Bitmap$Config"),
-                                          "ARGB_8888", "Landroid/graphics/Bitmap$Config;")
-            )
-    );
-
-    // Accès direct aux pixels du Bitmap
-    AndroidBitmapInfo bitmapInfo;
-    void *pixels = nullptr;
-    if (AndroidBitmap_getInfo(env, bitmap, &bitmapInfo) < 0 ||
-        AndroidBitmap_lockPixels(env, bitmap, &pixels) < 0) {
-        __android_log_print(ANDROID_LOG_ERROR, "SUBTITLE_RENDER", "Unable to lock bitmap pixels");
-        return nullptr;
-    }
-
-    // Nettoyage du buffer
-    memset(pixels, 0, bitmapInfo.stride * bitmapInfo.height);
-
-    // Dessin de toutes les composantes du sous-titre
-    for (ASS_Image *img = ass_image; img; img = img->next) {
-        uint8_t *dst = reinterpret_cast<uint8_t *>(pixels) +
-                       img->dst_y * bitmapInfo.stride + // Décalage vertical
-                       img->dst_x * 4;                  // Décalage horizontal (4 bytes/pixel)
-
-        draw_ass_rgba(dst, (ptrdiff_t) bitmapInfo.stride, img->bitmap, img->stride, img->w, img->h,
-                      img->color);
-    }
-
-    AndroidBitmap_unlockPixels(env, bitmap);
-
-    return bitmap;
+    return nativeAssRenderFrame(env, (jclass)thiz, context, (jlong)renderer.get(), (jlong)track.get(), timestamp, true ? JNI_TRUE : JNI_FALSE, (jint)screenWidth, (jint)screenHeight);
 }
+
+
+
+static void log_cb(void *priv, enum pl_log_level level, const char *msg)
+{
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "placebo - %s", msg);
+}
+
+void checkGLError(const char* context) {
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "OpenGL error at %s: 0x%04x", context, err);
+    }
+}
+
+
+
+extern "C"
+JNIEXPORT jlong JNICALL Java_com_example_prototypelibass_MainActivity_nativeInitializeLibplacebo(JNIEnv* env, jclass clazz) {
+    EGLDisplay display = eglGetCurrentDisplay();
+    EGLContext context = eglGetCurrentContext();
+    if (display == EGL_NO_DISPLAY || context == EGL_NO_CONTEXT) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to eglGetCurrentDisplay or eglGetCurrentContext");
+        return 0;
+    }
+
+    /*pl_log pllog = pl_log_create(PL_API_VER, &(struct pl_log_params) {
+            .log_cb     = log_cb,
+            .log_level   = PL_LOG_DEBUG,
+    });*/
+
+    struct pl_log_params params = {
+            .log_cb    = log_cb,
+            .log_level = PL_LOG_DEBUG,
+    };
+
+    pl_log pllog = pl_log_create(PL_API_VER, &params);
+
+
+    struct pl_opengl_params gl_params = {
+            .get_proc_addr = eglGetProcAddress,
+            .allow_software     = true,         // allow software rasterers
+            .debug              = true,         // enable error reporting
+    };
+    pl_opengl plgl = pl_opengl_create(pllog, &gl_params);
+    if (!plgl) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create pl_opengl");
+        return 0;
+    }
+
+    pl_renderer renderer = pl_renderer_create(pllog, plgl->gpu);
+    if (!renderer) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create renderer");
+        pl_opengl_destroy(&plgl);
+        return 0;
+    }
+
+    pl_fmt format_r8 = pl_find_named_fmt(plgl->gpu, "r8");
+    if (!format_r8) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Format r8 not found");
+        return 0;
+    }
+
+    pl_fmt format_rgba8 = pl_find_named_fmt(plgl->gpu, "rgba8");
+    if (!format_rgba8) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Format rgba8 not found");
+        return 0;
+    }
+
+
+    LibplaceboContext* libplaceboContext = (LibplaceboContext*)malloc(sizeof(LibplaceboContext));
+    if (!libplaceboContext) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to allocate LibplaceboContext");
+        return 0;
+    }
+
+    libplaceboContext->pllog = pllog;
+    libplaceboContext->plgl = plgl;
+    libplaceboContext->renderer = renderer;
+    libplaceboContext->format_r8 = format_r8;
+    libplaceboContext->format_rgba8 = format_rgba8;
+
+    // Return pointer casted to jlong
+    return (jlong)libplaceboContext;
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_example_prototypelibass_MainActivity_nativeUninitializeLibplacebo(JNIEnv* env, jclass clazz, jlong ctxPtr) {
+    if (!ctxPtr) return;
+
+    LibplaceboContext* ctx = (LibplaceboContext*)ctxPtr;
+
+    if (ctx->renderer) {
+        pl_renderer_destroy(&ctx->renderer);
+    }
+
+    if (ctx->plgl) {
+        pl_opengl_destroy(&ctx->plgl);
+    }
+
+    if (ctx->pllog) {
+        pl_log_destroy(&ctx->pllog);
+    }
+
+
+    free(ctx);
+}
+
+
+

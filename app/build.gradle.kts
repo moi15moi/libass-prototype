@@ -1,3 +1,5 @@
+import kotlin.collections.plusAssign
+
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -14,9 +16,20 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=c++_shared")
+            }
+        }
+
     }
 
     buildTypes {
+        debug {
+            ndk {
+                debugSymbolLevel = "FULL"
+            }
+        }
         release {
             isMinifyEnabled = false
             proguardFiles(

@@ -1,5 +1,3 @@
-import kotlin.collections.plusAssign
-
 plugins {
     alias(libs.plugins.android.application)
 }
@@ -26,9 +24,8 @@ android {
 
     buildTypes {
         debug {
-            ndk {
-                debugSymbolLevel = "FULL"
-            }
+            isDebuggable = true
+            packaging.jniLibs.keepDebugSymbols.add("**/*.so")
         }
         release {
             isMinifyEnabled = false

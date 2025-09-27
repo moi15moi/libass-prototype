@@ -5,6 +5,7 @@ import android.graphics.Bitmap;
 import android.opengl.GLSurfaceView;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.ViewGroup;
 import android.view.ViewTreeObserver;
 import android.widget.ImageView;
 
@@ -32,6 +33,10 @@ public class MainActivity extends AppCompatActivity {
 
         glView = findViewById(R.id.gl_view);
         glView.setEGLContextClientVersion(3); // use GLES2
+        ViewGroup.LayoutParams params = glView.getLayoutParams();
+        params.width = 600; // in pixels
+        params.height = 600; // in pixels
+        glView.setLayoutParams(params);
         glView.setRenderer(new Renderer(getAssets()));
 
 

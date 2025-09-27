@@ -97,6 +97,7 @@ class ToolchainEnvVar:
     LDFLAGS: str
     prefix: str
     PKG_CONFIG_PATH: str
+    PKG_CONFIG_LIBDIR: str
 
 
 def create_meson_cross_file(target: Target, toolchain_env_var: ToolchainEnvVar, build_dir: Path) -> Path:
@@ -110,6 +111,7 @@ def create_meson_cross_file(target: Target, toolchain_env_var: ToolchainEnvVar, 
     cpp_link_args = '{toolchain_env_var.LDFLAGS}'
     prefix = '{toolchain_env_var.prefix}'
     pkg_config_path = '{toolchain_env_var.PKG_CONFIG_PATH}'
+    strip = 'false'
 
     [binaries]
     c = '{toolchain_env_var.CC}'
@@ -128,6 +130,9 @@ def create_meson_cross_file(target: Target, toolchain_env_var: ToolchainEnvVar, 
     cpu_family = '{target.cpu_family}'
     cpu = '{target.cpu}'
     endian = 'little'
+
+    [properties]
+    pkg_config_libdir = '{toolchain_env_var.PKG_CONFIG_PATH}'
     """)
 
     meson_cross_file = build_dir.joinpath(f"{target.abi}.txt")
@@ -150,6 +155,7 @@ def prepare_autotools_env(toolchain_env_var: ToolchainEnvVar) -> dict:
         "YASM": toolchain_env_var.YASM,
         "LDFLAGS": toolchain_env_var.LDFLAGS,
         "PKG_CONFIG_PATH": toolchain_env_var.PKG_CONFIG_PATH,
+        "PKG_CONFIG_LIBDIR": toolchain_env_var.PKG_CONFIG_LIBDIR,
     })
 
     return env
@@ -195,6 +201,7 @@ def build_project(project: Project, target: Target, abi_version: int, toolchain_
         str(toolchain_path.joinpath("bin", "yasm")),
         "-Wl,-z,max-page-size=16384", # Android require 16 KB page sizes: https://developer.android.com/guide/practices/page-sizes
         str(target_dir),
+        str(target_dir.joinpath("lib", "pkgconfig")),
         str(target_dir.joinpath("lib", "pkgconfig"))
     )
 
@@ -209,7 +216,7 @@ def build_project(project: Project, target: Target, abi_version: int, toolchain_
 
         subprocess.run(["ninja", "-C", "build", "install"], cwd=project_dir, check=True)
 
-        shutil.rmtree(project_dir.joinpath("build"))
+        #shutil.rmtree(project_dir.joinpath("build"))
         meson_cross_file.unlink()
     elif project.build_system == BuildSystem.AUTOTOOLS:
         if not project_dir.joinpath("configure").is_file():
@@ -263,10 +270,10 @@ def main() -> None:
     build_dir.mkdir()
 
     targets = [
-        Target("armeabi-v7a", "armv7a-linux-androideabi", "armv7a", "arm"),
+        #Target("armeabi-v7a", "armv7a-linux-androideabi", "armv7a", "arm"),
         Target("arm64-v8a", "aarch64-linux-android", "aarch64", "aarch64"),
-        Target("x86", "i686-linux-android", "i686", "x86"),
-        Target("x86-64", "x86_64-linux-android", "x86_64", "x86_64"),
+        #Target("x86", "i686-linux-android", "i686", "x86"),
+        #Target("x86-64", "x86_64-linux-android", "x86_64", "x86_64"),
     ]
 
     projects = [
@@ -277,7 +284,7 @@ def main() -> None:
         Project("expat", ProjectDownloadTar("https://github.com/libexpat/libexpat/releases/download/R_2_7_1/expat-2.7.1.tar.xz"), BuildSystem.AUTOTOOLS, ["--without-tests", "--without-docbook"], {}),
         Project("fontconfig", ProjectDownloadTar("https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.16.0.tar.xz"), BuildSystem.MESON, ["-Dtests=disabled", "-Ddoc=disabled", "-Dtools=disabled", "-Dxml-backend=expat"], {}),
         Project("ass", ProjectDownloadTar("https://github.com/libass/libass/releases/download/0.17.3/libass-0.17.3.tar.xz"), BuildSystem.AUTOTOOLS, ["--enable-fontconfig", "--enable-libunibreak"], {"arm64-v8a": ["--enable-asm"], "x86": ["--enable-asm"], "x86-64": ["--enable-asm"]}),
-        Project("placebo", ProjectDownloadGit("https://code.videolan.org/videolan/libplacebo.git", "v7.351.0", True), BuildSystem.MESON, ["-Dopengl=enabled", "-Ddemos=false"], {}),
+        Project("placebo", ProjectDownloadGit("https://code.videolan.org/videolan/libplacebo.git", "v7.351.0", True), BuildSystem.MESON, ["-Dopengl=enabled", "-Ddemos=false", "-Dvulkan=disabled"], {}),
     ]
 
     for target in targets:

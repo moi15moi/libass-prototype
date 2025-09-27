@@ -25,6 +25,119 @@ typedef struct libplacebo_context {
     pl_fmt format_rgba8;
 } LibplaceboContext;
 
+
+
+static void log_cb(void *priv, enum pl_log_level level, const char *msg)
+{
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "placebo - %s", msg);
+}
+
+void checkGLError(const char* context) {
+    GLenum err;
+    while ((err = glGetError()) != GL_NO_ERROR) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "OpenGL error at %s: 0x%04x", context, err);
+    }
+}
+
+
+
+extern "C"
+JNIEXPORT jlong JNICALL Java_com_example_prototypelibass_MainActivity_nativeInitializeLibplacebo(JNIEnv* env, jclass clazz) {
+    EGLDisplay display = eglGetCurrentDisplay();
+    EGLContext context = eglGetCurrentContext();
+    if (display == EGL_NO_DISPLAY || context == EGL_NO_CONTEXT) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to eglGetCurrentDisplay or eglGetCurrentContext");
+        return 0;
+    }
+
+    /*pl_log pllog = pl_log_create(PL_API_VER, &(struct pl_log_params) {
+            .log_cb     = log_cb,
+            .log_level   = PL_LOG_DEBUG,
+    });*/
+
+    struct pl_log_params params = {
+            .log_cb    = log_cb,
+            .log_level = PL_LOG_DEBUG,
+    };
+
+    pl_log pllog = pl_log_create(PL_API_VER, &params);
+
+
+    struct pl_opengl_params gl_params = {
+            .get_proc_addr = eglGetProcAddress,
+            .allow_software     = true,         // allow software rasterers
+            .debug              = true,         // enable error reporting
+            .egl_display        = display,
+            .egl_context        = context
+    };
+    pl_opengl plgl = pl_opengl_create(pllog, &gl_params);
+    if (!plgl) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create pl_opengl");
+        return 0;
+    }
+
+    pl_renderer renderer = pl_renderer_create(pllog, plgl->gpu);
+    if (!renderer) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create renderer");
+        pl_opengl_destroy(&plgl);
+        return 0;
+    }
+
+    pl_fmt format_r8 = pl_find_named_fmt(plgl->gpu, "r8");
+    if (!format_r8) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Format r8 not found");
+        return 0;
+    }
+
+    pl_fmt format_rgba8 = pl_find_named_fmt(plgl->gpu, "rgba8");
+    if (!format_rgba8) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Format rgba8 not found");
+        return 0;
+    }
+
+
+    LibplaceboContext* libplaceboContext = (LibplaceboContext*)malloc(sizeof(LibplaceboContext));
+    if (!libplaceboContext) {
+        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to allocate LibplaceboContext");
+        return 0;
+    }
+
+    libplaceboContext->pllog = pllog;
+    libplaceboContext->plgl = plgl;
+    libplaceboContext->renderer = renderer;
+    libplaceboContext->format_r8 = format_r8;
+    libplaceboContext->format_rgba8 = format_rgba8;
+
+    // Return pointer casted to jlong
+    return (jlong)libplaceboContext;
+}
+
+extern "C"
+JNIEXPORT void JNICALL Java_com_example_prototypelibass_MainActivity_nativeUninitializeLibplacebo(JNIEnv* env, jclass clazz, jlong ctxPtr) {
+    if (!ctxPtr) return;
+
+    LibplaceboContext* ctx = (LibplaceboContext*)ctxPtr;
+
+    if (ctx->renderer) {
+        pl_renderer_destroy(&ctx->renderer);
+    }
+
+    if (ctx->plgl) {
+        pl_opengl_destroy(&ctx->plgl);
+    }
+
+    if (ctx->pllog) {
+        pl_log_destroy(&ctx->pllog);
+    }
+
+
+    free(ctx);
+}
+
+
+
+
+
 jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
                              jlong context,
                              jlong render,
@@ -33,6 +146,8 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
                              jboolean onlyAlpha,
                              jint width,
                              jint height) {
+    context = Java_com_example_prototypelibass_MainActivity_nativeInitializeLibplacebo(env, clazz);
+
     if (!context) return NULL;
 
     LibplaceboContext* ctx = (LibplaceboContext*)context;
@@ -43,6 +158,8 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
     int changed;
     ASS_Image *image = ass_render_frame((ASS_Renderer *) render, (ASS_Track *) track, time, &changed);
     clock_gettime(CLOCK_MONOTONIC, &end);
+
+    image = image->next->next->next->next;
 
     double elapsed_ms = (end.tv_sec - start.tv_sec) * 1000.0 +
                         (end.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -80,13 +197,14 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
 
     __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Ass image is %ix%i", image->w, image->h);
 
-    // TODO Utiliser posix_memalign
-    bool is_ok = pl_tex_upload(ctx->plgl->gpu, &(struct pl_tex_transfer_params) {
+    pl_tex_transfer_params transferParams = {
             .tex        = src_tex,
             .rc         = { .x1 = image->w, .y1 = image->h, },
             .row_pitch  = static_cast<size_t>(image->stride),
             .ptr        = image->bitmap,
-    });
+    };
+    // TODO Utiliser posix_memalign
+    bool is_ok = pl_tex_upload(ctx->plgl->gpu, &transferParams);
     if (!is_ok) {
         __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to pl_tex_upload");
         pl_tex_destroy(ctx->plgl->gpu, &src_tex);
@@ -115,9 +233,9 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
                     .primaries = PL_COLOR_PRIM_BT_709,
                     .transfer = PL_COLOR_TRC_SRGB,
             },
-            .repr = {
+            /*.repr = {
                     .alpha = PL_ALPHA_INDEPENDENT
-            }
+            }*/
     };
 
 
@@ -144,7 +262,6 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
     __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Libplacebo output GL texture ID: %u target_type=%u iformat=%u fbo=%u", tex_id, target_type, iformat, fbo);
 
     struct pl_frame target = {
-            .repr = pl_color_repr_rgb,
             .num_planes = 1,
             .planes[0] = {
                     .texture = dst_tex,
@@ -153,6 +270,8 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
             },
             .overlays = &overlayl,
             .num_overlays = 1,
+
+            //.repr = pl_color_repr_rgb,
     };
 
     is_ok = pl_render_image(ctx->renderer, NULL, &target, &pl_render_default_params);
@@ -330,113 +449,3 @@ Java_com_example_prototypelibass_MainActivity_renderSubtitleFrame(
 
     return nativeAssRenderFrame(env, (jclass)thiz, context, (jlong)renderer.get(), (jlong)track.get(), timestamp, true ? JNI_TRUE : JNI_FALSE, (jint)screenWidth, (jint)screenHeight);
 }
-
-
-
-static void log_cb(void *priv, enum pl_log_level level, const char *msg)
-{
-    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "placebo - %s", msg);
-}
-
-void checkGLError(const char* context) {
-    GLenum err;
-    while ((err = glGetError()) != GL_NO_ERROR) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "OpenGL error at %s: 0x%04x", context, err);
-    }
-}
-
-
-
-extern "C"
-JNIEXPORT jlong JNICALL Java_com_example_prototypelibass_MainActivity_nativeInitializeLibplacebo(JNIEnv* env, jclass clazz) {
-    EGLDisplay display = eglGetCurrentDisplay();
-    EGLContext context = eglGetCurrentContext();
-    if (display == EGL_NO_DISPLAY || context == EGL_NO_CONTEXT) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to eglGetCurrentDisplay or eglGetCurrentContext");
-        return 0;
-    }
-
-    /*pl_log pllog = pl_log_create(PL_API_VER, &(struct pl_log_params) {
-            .log_cb     = log_cb,
-            .log_level   = PL_LOG_DEBUG,
-    });*/
-
-    struct pl_log_params params = {
-            .log_cb    = log_cb,
-            .log_level = PL_LOG_DEBUG,
-    };
-
-    pl_log pllog = pl_log_create(PL_API_VER, &params);
-
-
-    struct pl_opengl_params gl_params = {
-            .get_proc_addr = eglGetProcAddress,
-            .allow_software     = true,         // allow software rasterers
-            .debug              = true,         // enable error reporting
-    };
-    pl_opengl plgl = pl_opengl_create(pllog, &gl_params);
-    if (!plgl) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create pl_opengl");
-        return 0;
-    }
-
-    pl_renderer renderer = pl_renderer_create(pllog, plgl->gpu);
-    if (!renderer) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to create renderer");
-        pl_opengl_destroy(&plgl);
-        return 0;
-    }
-
-    pl_fmt format_r8 = pl_find_named_fmt(plgl->gpu, "r8");
-    if (!format_r8) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Format r8 not found");
-        return 0;
-    }
-
-    pl_fmt format_rgba8 = pl_find_named_fmt(plgl->gpu, "rgba8");
-    if (!format_rgba8) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Format rgba8 not found");
-        return 0;
-    }
-
-
-    LibplaceboContext* libplaceboContext = (LibplaceboContext*)malloc(sizeof(LibplaceboContext));
-    if (!libplaceboContext) {
-        __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "Failed to allocate LibplaceboContext");
-        return 0;
-    }
-
-    libplaceboContext->pllog = pllog;
-    libplaceboContext->plgl = plgl;
-    libplaceboContext->renderer = renderer;
-    libplaceboContext->format_r8 = format_r8;
-    libplaceboContext->format_rgba8 = format_rgba8;
-
-    // Return pointer casted to jlong
-    return (jlong)libplaceboContext;
-}
-
-extern "C"
-JNIEXPORT void JNICALL Java_com_example_prototypelibass_MainActivity_nativeUninitializeLibplacebo(JNIEnv* env, jclass clazz, jlong ctxPtr) {
-    if (!ctxPtr) return;
-
-    LibplaceboContext* ctx = (LibplaceboContext*)ctxPtr;
-
-    if (ctx->renderer) {
-        pl_renderer_destroy(&ctx->renderer);
-    }
-
-    if (ctx->plgl) {
-        pl_opengl_destroy(&ctx->plgl);
-    }
-
-    if (ctx->pllog) {
-        pl_log_destroy(&ctx->pllog);
-    }
-
-
-    free(ctx);
-}
-
-
-

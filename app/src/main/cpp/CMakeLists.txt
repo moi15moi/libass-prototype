@@ -22,7 +22,7 @@ foreach(libass_lib fribidi harfbuzz unibreak freetype expat fontconfig ass place
 
     add_library(
             ${libass_lib}
-            STATIC
+            SHARED
             IMPORTED)
     set_target_properties(
             ${libass_lib} PROPERTIES
@@ -68,4 +68,4 @@ placebo
         EGL
         GLESv3)
 
-target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wno-address-of-temporary)
+#target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE -Wno-address-of-temporary)

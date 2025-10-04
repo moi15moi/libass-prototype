@@ -159,7 +159,7 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
     ASS_Image *image = ass_render_frame((ASS_Renderer *) render, (ASS_Track *) track, time, &changed);
     clock_gettime(CLOCK_MONOTONIC, &end);
 
-    image = image->next->next->next->next;
+    image = image->next;
 
     double elapsed_ms = (end.tv_sec - start.tv_sec) * 1000.0 +
                         (end.tv_nsec - start.tv_nsec) / 1000000.0;
@@ -214,7 +214,7 @@ jobject nativeAssRenderFrame(JNIEnv* env, jclass clazz,
     __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "pl_tex_upload finished");
 
     struct pl_overlay_part part = {
-            .src = { static_cast<float>(image->dst_x), static_cast<float>(image->dst_y), static_cast<float>(image->dst_x + image->w), static_cast<float>(image->dst_y + image->h) },
+            .src = { 0.0f, 0.0f, static_cast<float>(image->w), static_cast<float>(image->h) },
             .dst = { static_cast<float>(image->dst_x), static_cast<float>(image->dst_y), static_cast<float>(image->dst_x + image->w), static_cast<float>(image->dst_y + image->h) },
             .color = {
                     (image->color >> 24) / 255.0f,
